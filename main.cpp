@@ -9,8 +9,6 @@
 
 static constexpr size_t MAX_RESULT_DOCUMENT_COUNT = 5;
 
-class SearchServer;
-
 struct Document {
     int id;
     int relevance;
@@ -20,30 +18,6 @@ struct Query {
     std::vector<std::string> plus_words;
     std::vector<std::string> minus_words;
 };
-
-SearchServer CreateSearchServer() {
-    SearchServer search_server;
-    search_server.SetStopWords(ReadLine());
-
-    const int document_count = ReadLineWithNumber();
-    for (int document_id = 0; document_id < document_count; ++document_id) {
-        search_server.AddDocument(document_id, ReadLine());
-    }
-    return search_server;
-}
-
-std::string ReadLine() {
-    std::string s;
-    getline(std::cin, s);
-    return s;
-}
-
-int ReadLineWithNumber() {
-    int result;
-    std::cin >> result;
-    ReadLine();
-    return result;
-}
 
 class SearchServer {
 private:
@@ -150,6 +124,30 @@ private:
         return found_documents;
     }
 };
+
+std::string ReadLine() {
+    std::string s;
+    getline(std::cin, s);
+    return s;
+}
+
+int ReadLineWithNumber() {
+    int result;
+    std::cin >> result;
+    ReadLine();
+    return result;
+}
+
+SearchServer CreateSearchServer() {
+    SearchServer search_server;
+    search_server.SetStopWords(ReadLine());
+
+    const int document_count = ReadLineWithNumber();
+    for (int document_id = 0; document_id < document_count; ++document_id) {
+        search_server.AddDocument(document_id, ReadLine());
+    }
+    return search_server;
+}
 
 int main() {
     const SearchServer search_server = CreateSearchServer();
