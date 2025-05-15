@@ -6,11 +6,13 @@
 #include <algorithm>
 #include <execution>
 #include <cmath>
+#include <numeric>
 
 static constexpr size_t MAX_RESULT_DOCUMENT_COUNT = 5;
 
 struct Document {
     int id;
+    int rating;
     double relevance;
 };
 
@@ -23,10 +25,14 @@ class SearchServer {
 private:
     std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
+    std::map<int, int> document_to_rating;
     int document_count_ = 0;
 
 public:
-    void AddDocument(int document_id, const std::string& document) {
+    void AddDocument(int document_id, const std::string& document, const std::vector<int>& rates) {
+        int avg_rating = ComputeAverageRating(rates);
+        document_to_rating[document_id] = avg_rating;
+
         std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
         if(words_no_stop.empty()) return;
 
@@ -110,6 +116,13 @@ private:
         return query_words;
     }
 
+    int GetRating(int document_id) const {
+        if(auto it = document_to_rating.find(document_id); it != document_to_rating.end()) {
+            return it->second;
+        }
+        return 0;
+    }
+
     std::vector<Document> FindAllDocuments(const std::string& query) const {
         const Query query_words = ParseQuery(query);
         std::map<int, double> document_to_relevance;
@@ -138,9 +151,17 @@ private:
 
         std::vector<Document> found_documents;
         for (auto [document_id, relevance] : document_to_relevance) {
-            found_documents.push_back({document_id, relevance});
+            found_documents.push_back({document_id, GetRating(document_id), relevance});
         }
         return found_documents;
+    }
+
+    static int ComputeAverageRating(const std::vector<int>& rates) {
+        int rates_summary = std::reduce(std::execution::par, rates.begin(), rates.end(), 0);
+        int rates_size = rates.size();
+        int avg_rating = rates_summary / rates_size;
+
+        return avg_rating;
     }
 };
 
@@ -160,10 +181,23 @@ int ReadLineWithNumber() {
 SearchServer CreateSearchServer() {
     SearchServer search_server;
     search_server.SetStopWords(ReadLine());
-    search_server.setDocumentsCount(ReadLineWithNumber());
+    const int document_count = ReadLineWithNumber();
+    search_server.setDocumentsCount(document_count);
 
-    for (int document_id = 0; document_id < search_server.GetDocumentsCount(); ++document_id) {
-        search_server.AddDocument(document_id, ReadLine());
+    for (int document_id = 0; document_id < document_count; ++document_id) {
+        std::string text = ReadLine();
+
+        int rates_count; std::cin >> rates_count;
+        std::vector<int> rates(rates_count);
+
+        int current_rate;
+        for(int i = 0; i < rates_count; ++i) {
+            std::cin >> current_rate;
+            rates[i] = current_rate;
+        }
+        std::cin.ignore();
+
+        search_server.AddDocument(document_id, text, rates);
     }
     return search_server;
 }
@@ -172,8 +206,7 @@ int main() {
     const SearchServer search_server = CreateSearchServer();
     const std::string query = ReadLine();
 
-    for (auto [document_id, relevance]: search_server.FindTopDocuments(query)) {
-        std::cout << "{ document_id = " << document_id << ", relevance = " << relevance << " }" << std::endl;
+    for (auto [document_id, rating, relevance]: search_server.FindTopDocuments(query)) {
+        std::cout << "{ document_id = " << document_id << ", relevance = " << relevance << ", rating = " << rating << " }" << std::endl;
     }
-
 }
