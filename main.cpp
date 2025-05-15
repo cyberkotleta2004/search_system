@@ -5,13 +5,13 @@
 #include <vector>
 #include <algorithm>
 #include <execution>
-#include <chrono>
+#include <cmath>
 
 static constexpr size_t MAX_RESULT_DOCUMENT_COUNT = 5;
 
 struct Document {
     int id;
-    int relevance;
+    double relevance;
 };
 
 struct Query {
@@ -21,13 +21,21 @@ struct Query {
 
 class SearchServer {
 private:
-    std::map<std::string, std::set<int>> word_to_documents_;
+    std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
+    int document_count_ = 0;
 
 public:
     void AddDocument(int document_id, const std::string& document) {
-        for (const std::string& word : SplitIntoWordsNoStop(document)) {
-            word_to_documents_[word].insert(document_id);
+        std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
+        if(words_no_stop.empty()) return;
+
+        std::map<std::string, int> words_to_count;
+        for (const std::string& word : words_no_stop) {
+            ++words_to_count[word];
+        }
+        for(const auto& [word, count] : words_to_count) {
+            word_to_documents_freqs_[word].insert({document_id, static_cast<double>(count) / words_no_stop.size()});
         }
     }
 
@@ -35,6 +43,14 @@ public:
         for (const std::string& word : SplitIntoWords(text)) {
             stop_words_.insert(word);
         }
+    }
+
+    void setDocumentsCount(int documents_count) {
+        document_count_ = documents_count;
+    }
+
+    int GetDocumentsCount() const noexcept {
+        return document_count_;
     }
 
     std::vector<Document> FindTopDocuments(const std::string& query) const {
@@ -96,23 +112,26 @@ private:
 
     std::vector<Document> FindAllDocuments(const std::string& query) const {
         const Query query_words = ParseQuery(query);
-        std::map<int, int> document_to_relevance;
+        std::map<int, double> document_to_relevance;
 
         for (const std::string& plus_word : query_words.plus_words) {
-            if (word_to_documents_.count(plus_word) == 0) {
+            if (word_to_documents_freqs_.count(plus_word) == 0) {
                 continue;
             }
-            for (const int document_id : word_to_documents_.at(plus_word)) {
-                ++document_to_relevance[document_id];
+
+            int word_meet_count = word_to_documents_freqs_.at(plus_word).size();
+            for (const auto& [document_id, tf] : word_to_documents_freqs_.at(plus_word)) {
+                double idf = std::log(static_cast<double>(document_count_) / word_meet_count);
+                document_to_relevance[document_id] += tf * idf;
             }
         }
 
         for(const std::string& minus_word : query_words.minus_words) {
-            if(word_to_documents_.count(minus_word) == 0) {
+            if(word_to_documents_freqs_.count(minus_word) == 0) {
                 continue;
             }
 
-            for (const int document_id : word_to_documents_.at(minus_word)) {
+            for (const auto [document_id, _] : word_to_documents_freqs_.at(minus_word)) {
                 document_to_relevance.erase(document_id);
             }
         }
@@ -141,9 +160,9 @@ int ReadLineWithNumber() {
 SearchServer CreateSearchServer() {
     SearchServer search_server;
     search_server.SetStopWords(ReadLine());
+    search_server.setDocumentsCount(ReadLineWithNumber());
 
-    const int document_count = ReadLineWithNumber();
-    for (int document_id = 0; document_id < document_count; ++document_id) {
+    for (int document_id = 0; document_id < search_server.GetDocumentsCount(); ++document_id) {
         search_server.AddDocument(document_id, ReadLine());
     }
     return search_server;
