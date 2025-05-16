@@ -11,6 +11,7 @@
 using namespace std::string_literals;
 
 static constexpr size_t MAX_RESULT_DOCUMENT_COUNT = 5;
+static constexpr double EPSILON = 1e-6;
 
 class SearchServer {
 public:
@@ -81,8 +82,12 @@ public:
         std::sort(std::execution::par, 
              all_documents.begin(), 
              all_documents.end(), 
-             [](const Document& lhd, const Document& rhd) {
-                 return lhd.relevance > rhd.relevance;
+             [](const Document& lhd, const Document& rhd) -> bool {
+                if(std::abs(lhd.relevance - rhd.relevance) <= 
+                        EPSILON * std::max(std::abs(lhd.relevance), std::abs(rhd.relevance))) {
+                    return lhd.rating > rhd.rating; 
+                }
+                return lhd.relevance > rhd.relevance;
              });
 
         for(int i = 0; i < static_cast<int>(all_documents.size()); ++i) {
@@ -262,11 +267,8 @@ int main() {
     search_server.AddDocument(0, "белый кот и модный ошейник"s,        SearchServer::DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, SearchServer::DocumentStatus::ACTUAL, {5, -12, 2, 1});
-    search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
-    const int document_count = search_server.GetDocumentsCount();
-    for (int document_id = 0; document_id < document_count; ++document_id) {
-        const auto [words, status] = search_server.MatchDocument("пушистый кот"s, document_id);
-        PrintMatchDocumentResult(document_id, words, status);
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("ухоженный кот"s)) {
+        PrintDocument(document);
     }
 }
