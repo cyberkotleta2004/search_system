@@ -30,8 +30,8 @@ public:
 
 private:
     struct Query {
-        std::vector<std::string> plus_words;
-        std::vector<std::string> minus_words;
+        std::set<std::string> plus_words;
+        std::set<std::string> minus_words;
     };
 
 private:
@@ -93,6 +93,24 @@ public:
         }
         return top_documents;
     }
+
+    std::tuple<std::vector<std::string>, DocumentStatus> 
+    MatchDocument(const std::string& raw_query, int document_id) const {
+        std::vector<std::string> plus_words;
+        Query query_words = ParseQuery(raw_query);
+
+        for(const auto& mw : query_words.minus_words) {
+            if(word_to_documents_freqs_.at(mw).contains(document_id)) {
+                return {{}, document_to_status.at(document_id)};
+            }
+        }
+        for(const auto& pw : query_words.plus_words) {
+            if(word_to_documents_freqs_.at(pw).contains(document_id)) {
+                plus_words.push_back(pw);
+            }
+        }
+        return {plus_words, document_to_status.at(document_id)};
+    }
     
 private:  
     std::vector<std::string> SplitIntoWords(const std::string& text) const {
@@ -121,13 +139,13 @@ private:
         return words;
     }
 
-    Query ParseQuery(const std::string& query) const {
+    Query ParseQuery(const std::string& raw_query) const {
         Query query_words;
-        for (const std::string& word : SplitIntoWords(query)) {
+        for (const std::string& word : SplitIntoWords(raw_query)) {
             if(word[0] == '-') {
-                query_words.minus_words.push_back(word.substr(1));
+                query_words.minus_words.insert(word.substr(1));
             } else {
-                query_words.plus_words.push_back(word);
+                query_words.plus_words.insert(word);
             }
         }
         return query_words;
@@ -195,6 +213,17 @@ int ReadLineWithNumber() {
     return result;
 }
 
+void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& words, SearchServer::DocumentStatus status) {
+    std::cout << "{ "s
+         << "document_id = "s << document_id << ", "s
+         << "status = "s << static_cast<int>(status) << ", "s
+         << "words ="s;
+    for (const std::string& word : words) {
+        std::cout << ' ' << word;
+    }
+    std::cout << "}"s << std::endl;
+}
+
 // SearchServer CreateSearchServer() {
 //     SearchServer search_server;
 //     search_server.SetStopWords(ReadLine());
@@ -235,15 +264,9 @@ int main() {
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, SearchServer::DocumentStatus::ACTUAL, {5, -12, 2, 1});
     search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
-    std::cout << "ACTUAL:"s << std::endl;
-    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
-        PrintDocument(document);
+    const int document_count = search_server.GetDocumentsCount();
+    for (int document_id = 0; document_id < document_count; ++document_id) {
+        const auto [words, status] = search_server.MatchDocument("пушистый кот"s, document_id);
+        PrintMatchDocumentResult(document_id, words, status);
     }
-
-    std::cout << "BANNED:"s << std::endl;
-    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, SearchServer::DocumentStatus::BANNED)) {
-        PrintDocument(document);
-    }
-
-    return 0;
 }
