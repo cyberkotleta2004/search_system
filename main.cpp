@@ -12,26 +12,28 @@ using namespace std::string_literals;
 
 static constexpr size_t MAX_RESULT_DOCUMENT_COUNT = 5;
 
-enum class DocumentStatus {
-    ACTUAL,
-    IRRELEVANT,
-    BANNED,
-    REMOVED
-};
-
-struct Document {
-    int id;
-    int rating;
-    double relevance;
-    DocumentStatus status;
-};
-
-struct Query {
-    std::vector<std::string> plus_words;
-    std::vector<std::string> minus_words;
-};
-
 class SearchServer {
+public:
+    enum class DocumentStatus {
+        ACTUAL,
+        IRRELEVANT,
+        BANNED,
+        REMOVED
+    };
+
+    struct Document {
+        int id;
+        int rating;
+        double relevance;
+        DocumentStatus status;
+    };
+
+private:
+    struct Query {
+        std::vector<std::string> plus_words;
+        std::vector<std::string> minus_words;
+    };
+
 private:
     std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
@@ -91,6 +93,7 @@ public:
         }
         return top_documents;
     }
+    
 private:  
     std::vector<std::string> SplitIntoWords(const std::string& text) const {
         std::vector<std::string> words;
@@ -215,7 +218,7 @@ int ReadLineWithNumber() {
 //     return search_server;
 // }
 
-void PrintDocument(const Document& document) {
+void PrintDocument(const SearchServer::Document& document) {
     std::cout << "{ "s
     << "document_id = "s << document.id << ", "s
     << "relevance = "s << document.relevance << ", "s
@@ -227,18 +230,18 @@ int main() {
     SearchServer search_server;
     search_server.SetStopWords("и в на"s);
 
-    search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
-    search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
-    search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
-    search_server.AddDocument(3, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
+    search_server.AddDocument(0, "белый кот и модный ошейник"s,        SearchServer::DocumentStatus::ACTUAL, {8, -3});
+    search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, SearchServer::DocumentStatus::ACTUAL, {5, -12, 2, 1});
+    search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
     std::cout << "ACTUAL:"s << std::endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
         PrintDocument(document);
     }
 
     std::cout << "BANNED:"s << std::endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, DocumentStatus::BANNED)) {
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, SearchServer::DocumentStatus::BANNED)) {
         PrintDocument(document);
     }
 
