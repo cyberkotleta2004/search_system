@@ -106,8 +106,12 @@ public:
     }
 
     std::vector<Document> FindTopDocuments(const std::string& query) const {
-        auto pred = [](int id, DocumentStatus s, int r) {
-            return s == DocumentStatus::ACTUAL;
+        return FindTopDocuments(query, DocumentStatus::ACTUAL);
+    }
+
+    std::vector<Document> FindTopDocuments(const std::string& query, DocumentStatus status) const {
+        auto pred = [status](int id, DocumentStatus s, int r) {
+            return s == status;
         };
 
         return FindTopDocuments(query, pred);
@@ -288,8 +292,8 @@ int main() {
         PrintDocument(document);
     }
 
-    std::cout << "ACTUAL:"s << std::endl;
-    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, SearchServer::DocumentStatus status, int rating) { return status == SearchServer::DocumentStatus::ACTUAL; })) {
+    std::cout << "BANNED:"s << std::endl;
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, SearchServer::DocumentStatus::BANNED)) {
         PrintDocument(document);
     }
 
