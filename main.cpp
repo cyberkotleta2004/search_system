@@ -7,6 +7,7 @@
 #include <execution>
 #include <cmath>
 #include <numeric>
+#include <type_traits>
 
 using namespace std::string_literals;
 
@@ -26,7 +27,6 @@ public:
         int id;
         int rating;
         double relevance;
-        DocumentStatus status;
     };
 
 private:
@@ -72,8 +72,9 @@ public:
         return document_count_;
     }
 
+    template <typename Predicate>
     std::vector<Document> FindTopDocuments(
-            const std::string& query, DocumentStatus status = DocumentStatus::ACTUAL) const {
+            const std::string& query, Predicate pred) const {
 
         std::vector<Document> top_documents;
         top_documents.reserve(MAX_RESULT_DOCUMENT_COUNT);
@@ -91,12 +92,25 @@ public:
              });
 
         for(int i = 0; i < static_cast<int>(all_documents.size()); ++i) {
-            if(i == MAX_RESULT_DOCUMENT_COUNT) break;
-            if(document_to_status.at(all_documents[i].id) == status){
+            if(top_documents.size() == MAX_RESULT_DOCUMENT_COUNT) break;
+        
+            int id = all_documents[i].id;
+            DocumentStatus status = document_to_status.at(id);
+            int rating = all_documents[i].rating;
+
+            if(pred(id, status, rating)) {
                 top_documents.push_back(all_documents[i]);
             }
         }
         return top_documents;
+    }
+
+    std::vector<Document> FindTopDocuments(const std::string& query) const {
+        auto pred = [](int id, DocumentStatus s, int r) {
+            return s == DocumentStatus::ACTUAL;
+        };
+
+        return FindTopDocuments(query, pred);
     }
 
     std::tuple<std::vector<std::string>, DocumentStatus> 
@@ -267,8 +281,22 @@ int main() {
     search_server.AddDocument(0, "белый кот и модный ошейник"s,        SearchServer::DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, SearchServer::DocumentStatus::ACTUAL, {5, -12, 2, 1});
+    search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
-    for (const SearchServer::Document& document : search_server.FindTopDocuments("ухоженный кот"s)) {
+    std::cout << "ACTUAL by default:"s << std::endl;
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
         PrintDocument(document);
     }
+
+    std::cout << "ACTUAL:"s << std::endl;
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, SearchServer::DocumentStatus status, int rating) { return status == SearchServer::DocumentStatus::ACTUAL; })) {
+        PrintDocument(document);
+    }
+
+    std::cout << "Even ids:"s << std::endl;
+    for (const SearchServer::Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, SearchServer::DocumentStatus status, int rating) { return document_id % 2 == 0; })) {
+        PrintDocument(document);
+    }
+
+    return 0;
 }
