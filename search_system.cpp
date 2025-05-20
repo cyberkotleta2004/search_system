@@ -26,33 +26,63 @@ public:
     };
 
     struct Document {
-        int id;
-        int rating;
-        double relevance;
+        int id_;
+        int rating_;
+        double relevance_;
+
+        Document(): id_(0), rating_(0), relevance_(0.0) {}
+        Document(int id, int rating, double relevance)
+            : id_(id)
+            , rating_(rating)
+            , relevance_(relevance) 
+        {}
     };
 
 private:
     struct Query {
-        std::set<std::string> plus_words;
-        std::set<std::string> minus_words;
+        std::set<std::string> plus_words_;
+        std::set<std::string> minus_words_;
     };
 
 private:
     std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
-    std::map<int, int> document_to_rating;
-    std::map<int, DocumentStatus> document_to_status;
+    std::map<int, int> document_to_rating_;
+    std::map<int, DocumentStatus> document_to_status_;
     int document_count_ = 0;
 
 public:
+    SearchServer() = default;
+
+    explicit SearchServer(const std::string& stop_words)
+    {   
+        std::vector<std::string> stop_words_vector = SplitIntoWords(stop_words);
+        stop_words_ = std::set<std::string>(stop_words_vector.begin(), stop_words_vector.end());
+    }
+
+    template <typename Container>
+    SearchServer(const Container& container) {
+        for(const auto& word : container) {
+            if(word != "") {
+                bool is_all_spaces = std::all_of(word.begin(), word.end(), [](char ch) {
+                    return !std::isspace(ch);
+                });
+
+                if(!is_all_spaces) {
+                    stop_words_.insert(word);
+                }
+            }
+        }
+    }
+
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& rates) {
         std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
         if(words_no_stop.empty()) return;
 
         int avg_rating = ComputeAverageRating(rates);
-        document_to_rating[document_id] = avg_rating;
+        document_to_rating_[document_id] = avg_rating;
 
-        document_to_status[document_id] = status;
+        document_to_status_[document_id] = status;
 
         std::map<std::string, int> words_to_count;
         for (const std::string& word : words_no_stop) {
@@ -64,11 +94,11 @@ public:
         ++document_count_;
     }
 
-    void SetStopWords(const std::string& text) {
-        for (const std::string& word : SplitIntoWords(text)) {
-            stop_words_.insert(word);
-        }
-    }
+    // void SetStopWords(const std::string& text) {
+    //     for (const std::string& word : SplitIntoWords(text)) {
+    //         stop_words_.insert(word);
+    //     }
+    // }
 
     int GetDocumentsCount() const noexcept {
         return document_count_;
@@ -86,19 +116,19 @@ public:
              all_documents.begin(), 
              all_documents.end(), 
              [](const Document& lhd, const Document& rhd) -> bool {
-                if(std::abs(lhd.relevance - rhd.relevance) <= 
-                        EPSILON * std::max(std::abs(lhd.relevance), std::abs(rhd.relevance))) {
-                    return lhd.rating > rhd.rating; 
+                if(std::abs(lhd.relevance_ - rhd.relevance_) <= 
+                        EPSILON * std::max(std::abs(lhd.relevance_), std::abs(rhd.relevance_))) {
+                    return lhd.rating_ > rhd.rating_; 
                 }
-                return lhd.relevance > rhd.relevance;
+                return lhd.relevance_ > rhd.relevance_;
              });
 
         for(int i = 0; i < static_cast<int>(all_documents.size()); ++i) {
             if(top_documents.size() == MAX_RESULT_DOCUMENT_COUNT) break;
         
-            int id = all_documents[i].id;
-            DocumentStatus status = document_to_status.at(id);
-            int rating = all_documents[i].rating;
+            int id = all_documents[i].id_;
+            DocumentStatus status = document_to_status_.at(id);
+            int rating = all_documents[i].rating_;
 
             if(pred(id, status, rating)) {
                 top_documents.push_back(all_documents[i]);
@@ -124,17 +154,17 @@ public:
         std::vector<std::string> plus_words;
         Query query_words = ParseQuery(raw_query);
 
-        for(const auto& mw : query_words.minus_words) {
+        for(const auto& mw : query_words.minus_words_) {
             if (auto it = word_to_documents_freqs_.find(mw); it != word_to_documents_freqs_.end() && it->second.contains(document_id)) {
-                return {{}, document_to_status.at(document_id)};
+                return {{}, document_to_status_.at(document_id)};
             }
         }
-        for(const auto& pw : query_words.plus_words) {
+        for(const auto& pw : query_words.plus_words_) {
             if(auto it = word_to_documents_freqs_.find(pw); it != word_to_documents_freqs_.end() && it->second.contains(document_id)) {
                 plus_words.push_back(pw);
             }
         }
-        return {plus_words, document_to_status.at(document_id)};
+        return {plus_words, document_to_status_.at(document_id)};
     }
     
 private:  
@@ -142,7 +172,7 @@ private:
         std::vector<std::string> words;
         std::string word;
         for (const char c : text) {
-            if (c == ' ') {
+            if (c == ' ' && !word.empty()) {
                 words.push_back(word);
                 word = "";
             } else {
@@ -168,16 +198,16 @@ private:
         Query query_words;
         for (const std::string& word : SplitIntoWords(raw_query)) {
             if(word[0] == '-') {
-                query_words.minus_words.insert(word.substr(1));
+                query_words.minus_words_.insert(word.substr(1));
             } else {
-                query_words.plus_words.insert(word);
+                query_words.plus_words_.insert(word);
             }
         }
         return query_words;
     }
 
     int GetRating(int document_id) const {
-        if(auto it = document_to_rating.find(document_id); it != document_to_rating.end()) {
+        if(auto it = document_to_rating_.find(document_id); it != document_to_rating_.end()) {
             return it->second;
         }
         return 0;
@@ -187,7 +217,7 @@ private:
         const Query query_words = ParseQuery(query);
         std::map<int, double> document_to_relevance;
 
-        for (const std::string& plus_word : query_words.plus_words) {
+        for (const std::string& plus_word : query_words.plus_words_) {
             if (word_to_documents_freqs_.count(plus_word) == 0) {
                 continue;
             }
@@ -199,7 +229,7 @@ private:
             }
         }
 
-        for(const std::string& minus_word : query_words.minus_words) {
+        for(const std::string& minus_word : query_words.minus_words_) {
             if(word_to_documents_freqs_.count(minus_word) == 0) {
                 continue;
             }
@@ -275,9 +305,9 @@ void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& w
 
 void PrintDocument(const SearchServer::Document& document) {
     std::cout << "{ "s
-    << "document_id = "s << document.id << ", "s
-    << "relevance = "s << document.relevance << ", "s
-    << "rating = "s << document.rating
+    << "document_id = "s << document.id_ << ", "s
+    << "relevance = "s << document.relevance_ << ", "s
+    << "rating = "s << document.rating_
     << " }"s << std::endl;
 }
 
@@ -322,12 +352,11 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         const auto found_docs = server.FindTopDocuments("in"s);
         ASSERT_EQUAL(found_docs.size(), 1);
         const SearchServer::Document& doc0 = found_docs[0];
-        ASSERT_EQUAL(doc0.id, doc_id);
+        ASSERT_EQUAL(doc0.id_, doc_id);
     }
 
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         ASSERT(server.FindTopDocuments("in"s).empty());
     }
@@ -387,8 +416,8 @@ void TestRelevanceSortWorks() {
         server.AddDocument(3, "wdtfs"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat says"s);
         ASSERT_EQUAL(results.size(), 2);
-        ASSERT_EQUAL(results[0].id, 1);
-        ASSERT_EQUAL(results[1].id, 2);
+        ASSERT_EQUAL(results[0].id_, 1);
+        ASSERT_EQUAL(results[1].id_, 2);
     }
 
     {
@@ -398,7 +427,7 @@ void TestRelevanceSortWorks() {
         server.AddDocument(3, "wdtfs"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("-cat says"s);
         ASSERT_EQUAL(results.size(), 1);
-        ASSERT_EQUAL(results[0].id, 2);
+        ASSERT_EQUAL(results[0].id_, 2);
     }
 }
 
@@ -407,32 +436,32 @@ void TestRatingCountsCorrectly() {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {-4, 2, -7, -7});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(results[0].rating, -4);
+        ASSERT_EQUAL(results[0].rating_, -4);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(results[0].rating, 2);
+        ASSERT_EQUAL(results[0].rating_, 2);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {0, -1, 1});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(results[0].rating, 0);
+        ASSERT_EQUAL(results[0].rating_, 0);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(results[0].rating, 0);
+        ASSERT_EQUAL(results[0].rating_, 0);
 
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {4});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(results[0].rating, 4);
+        ASSERT_EQUAL(results[0].rating_, 4);
     }
 }
 
@@ -494,17 +523,16 @@ void TestStatusPredWorks() {
 }
 
 void TestRelevanceCountWorks() {
-    SearchServer search_server;
-    search_server.SetStopWords("и в на"s);
+    SearchServer search_server("и в на"s);
     search_server.AddDocument(0, "белый кот и модный ошейник"s,        SearchServer:: DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, SearchServer::DocumentStatus::ACTUAL, {5, -12, 2, 1});
     search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
     std::vector<SearchServer::Document> documents = search_server.FindTopDocuments("пушистый ухоженный кот"s);
-    ASSERT(documents[0].relevance - 0.866434 <= EPSILON * std::max(documents[0].relevance, 0.866434));
-    ASSERT(documents[1].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
-    ASSERT(documents[2].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
+    ASSERT(documents[0].relevance_ - 0.866434 <= EPSILON * std::max(documents[0].relevance_, 0.866434));
+    ASSERT(documents[1].relevance_ - 0.173287 <= EPSILON * std::max(documents[0].relevance_, 0.173287));
+    ASSERT(documents[2].relevance_ - 0.173287 <= EPSILON * std::max(documents[0].relevance_, 0.173287));
 }
 
 
@@ -524,4 +552,13 @@ void TestSearchServer() {
 
 int main() {
     TestSearchServer();
+    const std::vector<std::string> stop_words_vector = {"и"s, "в"s, "на"s, ""s, "в"s};
+    SearchServer search_server1(stop_words_vector);
+
+    // Инициализируем поисковую систему передавая стоп-слова в контейнере set
+    const std::set<std::string> stop_words_set = {"и"s, "в"s, "на"s};
+    SearchServer search_server2(stop_words_set);
+
+    // Инициализируем поисковую систему строкой со стоп-словами, разделёнными пробелами
+    SearchServer search_server3("  и  в на   "s);
 }
