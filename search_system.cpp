@@ -9,6 +9,7 @@
 #include <numeric>
 #include <type_traits>
 #include <cassert>
+#include "testing_framework.cpp"
 
 using namespace std::string_literals;
 
@@ -75,12 +76,12 @@ public:
 
     template <typename Predicate>
     std::vector<Document> FindTopDocuments(
-            const std::string& query, Predicate pred) const {
+            const std::string& raw_query, Predicate pred) const {
 
         std::vector<Document> top_documents;
         top_documents.reserve(MAX_RESULT_DOCUMENT_COUNT);
 
-        std::vector<Document> all_documents = FindAllDocuments(query);
+        std::vector<Document> all_documents = FindAllDocuments(raw_query);
         std::sort(std::execution::par, 
              all_documents.begin(), 
              all_documents.end(), 
@@ -106,16 +107,16 @@ public:
         return top_documents;
     }
 
-    std::vector<Document> FindTopDocuments(const std::string& query) const {
-        return FindTopDocuments(query, DocumentStatus::ACTUAL);
+    std::vector<Document> FindTopDocuments(const std::string& raw_query) const {
+        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
     }
 
-    std::vector<Document> FindTopDocuments(const std::string& query, DocumentStatus status) const {
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
         auto pred = [status](int id, DocumentStatus s, int r) {
             return s == status;
         };
 
-        return FindTopDocuments(query, pred);
+        return FindTopDocuments(raw_query, pred);
     }
 
     std::tuple<std::vector<std::string>, DocumentStatus> 
@@ -288,26 +289,26 @@ void TestAddedDocumentFind() {
     
     {
         SearchServer server;
-        assert(server.GetDocumentsCount() == 0);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 0);
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.GetDocumentsCount() == 1);
-        assert(server.FindTopDocuments("cat"s).size() == 1);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+        ASSERT_EQUAL(server.FindTopDocuments("cat"s).size(), 1);
     }
 
     {
         SearchServer server;
-        assert(server.GetDocumentsCount() == 0);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 0);
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.GetDocumentsCount() == 1);
-        assert(server.FindTopDocuments("dog"s).size() == 0);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+        ASSERT_EQUAL(server.FindTopDocuments("dog"s).size(), 0);
     }
 
     {
         SearchServer server;
-        assert(server.GetDocumentsCount() == 0);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 0);
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.GetDocumentsCount() == 1);
-        assert(server.FindTopDocuments("").size() == 0);
+        ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+        ASSERT_EQUAL(server.FindTopDocuments("").size(), 0);
     }
 }
 
@@ -319,16 +320,16 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("in"s);
-        assert(found_docs.size() == 1);
+        ASSERT_EQUAL(found_docs.size(), 1);
         const SearchServer::Document& doc0 = found_docs[0];
-        assert(doc0.id == doc_id);
+        ASSERT_EQUAL(doc0.id, doc_id);
     }
 
     {
         SearchServer server;
         server.SetStopWords("in the"s);
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.FindTopDocuments("in"s).empty());
+        ASSERT(server.FindTopDocuments("in"s).empty());
     }
 }
 
@@ -340,19 +341,19 @@ void TestMinusWordsWorks() {
     {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.FindTopDocuments("cat -in"s).size() == 0);
+        ASSERT_EQUAL(server.FindTopDocuments("cat -in"s).size(), 0);
     }
 
     {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.FindTopDocuments("-city"s).size() == 0);
+        ASSERT_EQUAL(server.FindTopDocuments("-city"s).size(), 0);
     }
 
     {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-        assert(server.FindTopDocuments("").size() == 0);
+        ASSERT_EQUAL(server.FindTopDocuments("").size(), 0);
     }
 }
 
@@ -365,15 +366,15 @@ void TestDocumentsMatching() {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         auto result = server.MatchDocument("cat dog in", doc_id);
-        assert(std::get<0>(result)[0] == "cat"s);
-        assert(std::get<0>(result)[1] == "in"s);
+        ASSERT_EQUAL(std::get<0>(result)[0], "cat"s);
+        ASSERT_EQUAL(std::get<0>(result)[1], "in"s);
     }
 
     {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         auto result = server.MatchDocument("-cat dog in", doc_id);
-        assert(std::get<0>(result).empty());
+        ASSERT(std::get<0>(result).empty());
     }
 }
 
@@ -385,9 +386,9 @@ void TestRelevanceSortWorks() {
         server.AddDocument(2, "dog says owf"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         server.AddDocument(3, "wdtfs"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat says"s);
-        assert(results.size() == 2);
-        assert(results[0].id == 1);
-        assert(results[1].id == 2);
+        ASSERT_EQUAL(results.size(), 2);
+        ASSERT_EQUAL(results[0].id, 1);
+        ASSERT_EQUAL(results[1].id, 2);
     }
 
     {
@@ -396,8 +397,8 @@ void TestRelevanceSortWorks() {
         server.AddDocument(2, "dog says owf"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         server.AddDocument(3, "wdtfs"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("-cat says"s);
-        assert(results.size() == 1);
-        assert(results[0].id == 2);
+        ASSERT_EQUAL(results.size(), 1);
+        ASSERT_EQUAL(results[0].id, 2);
     }
 }
 
@@ -406,32 +407,32 @@ void TestRatingCountsCorrectly() {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {-4, 2, -7, -7});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results[0].rating == -4);
+        ASSERT_EQUAL(results[0].rating, -4);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results[0].rating == 2);
+        ASSERT_EQUAL(results[0].rating, 2);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {0, -1, 1});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results[0].rating == 0);
+        ASSERT_EQUAL(results[0].rating, 0);
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results[0].rating == 0);
+        ASSERT_EQUAL(results[0].rating, 0);
 
     }
     {
         SearchServer server;
         server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {4});
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results[0].rating == 4);
+        ASSERT_EQUAL(results[0].rating, 4);
     }
 }
 
@@ -448,7 +449,7 @@ void TestPredicateWorks() {
                 return id == 42;
             });
 
-        assert(results.size() == 1);
+        ASSERT_EQUAL(results.size(), 1);
     }
 
     {
@@ -459,7 +460,7 @@ void TestPredicateWorks() {
                 return rating == 7;
             });
 
-        assert(results.size() == 0);
+        ASSERT_EQUAL(results.size(), 0);
     }
 }
 
@@ -473,14 +474,14 @@ void TestStatusPredWorks() {
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         std::vector<SearchServer::Document> results = 
             server.FindTopDocuments("cat"s, SearchServer::DocumentStatus::ACTUAL);
-        assert(results.size() == 1);
+        ASSERT_EQUAL(results.size(), 1);
     }
 
     {
         SearchServer server;
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         std::vector<SearchServer::Document> results = server.FindTopDocuments("cat"s);
-        assert(results.size() == 1);
+        ASSERT_EQUAL(results.size(), 1);
     }
 
     {
@@ -488,7 +489,7 @@ void TestStatusPredWorks() {
         server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
         std::vector<SearchServer::Document> results = 
             server.FindTopDocuments("cat"s, SearchServer::DocumentStatus::BANNED);
-        assert(results.size() == 0);
+        ASSERT_EQUAL(results.size(), 0);
     }
 }
 
@@ -501,24 +502,24 @@ void TestRelevanceCountWorks() {
     search_server.AddDocument(3, "ухоженный скворец евгений"s,         SearchServer::DocumentStatus::BANNED, {9});
 
     std::vector<SearchServer::Document> documents = search_server.FindTopDocuments("пушистый ухоженный кот"s);
-    assert(documents[0].relevance - 0.866434 <= EPSILON * std::max(documents[0].relevance, 0.866434));
-    assert(documents[1].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
-    assert(documents[2].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
+    ASSERT(documents[0].relevance - 0.866434 <= EPSILON * std::max(documents[0].relevance, 0.866434));
+    ASSERT(documents[1].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
+    ASSERT(documents[2].relevance - 0.173287 <= EPSILON * std::max(documents[0].relevance, 0.173287));
 }
 
 
 // --------- Окончание модульных тестов поисковой системы -----------
 
 void TestSearchServer() {
-    TestAddedDocumentFind();
-    TestExcludeStopWordsFromAddedDocumentContent();
-    TestMinusWordsWorks();
-    TestDocumentsMatching();
-    TestRelevanceSortWorks();
-    TestRatingCountsCorrectly();
-    TestPredicateWorks();
-    TestStatusPredWorks();
-    TestRelevanceCountWorks();
+    RUN_TEST(TestAddedDocumentFind);
+    RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
+    RUN_TEST(TestMinusWordsWorks);
+    RUN_TEST(TestDocumentsMatching);
+    RUN_TEST(TestRelevanceSortWorks);
+    RUN_TEST(TestRatingCountsCorrectly);
+    RUN_TEST(TestPredicateWorks);
+    RUN_TEST(TestStatusPredWorks);
+    RUN_TEST(TestRelevanceCountWorks);
 }
 
 int main() {
