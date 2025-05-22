@@ -47,66 +47,59 @@ private:
 private:
     std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
-    std::map<int, int> document_to_rating_;
-    std::map<int, DocumentStatus> document_to_status_;
+    // std::map<int, int> document_to_rating_;
+    // std::map<int, DocumentStatus> document_to_status_;
+    std::map<int, std::pair<int, SearchServer::DocumentStatus>> id_to_rating_status_;
     int document_count_ = 0;
 
 public:
     SearchServer() = default;
 
-    explicit SearchServer(const std::string& stop_words)
-    {   
-        std::vector<std::string> stop_words_vector = SplitIntoWords(stop_words);
-        stop_words_ = std::set<std::string>(stop_words_vector.begin(), stop_words_vector.end());
-    }
-
-    template <typename Container>
-    SearchServer(const Container& container) {
-        for(const auto& word : container) {
-            if(word != "") {
-                bool is_all_spaces = std::all_of(word.begin(), word.end(), [](char ch) {
-                    return !std::isspace(ch);
-                });
-
-                if(!is_all_spaces) {
-                    stop_words_.insert(word);
-                }
-            }
+    template <typename StringContainer>
+    explicit SearchServer(const StringContainer& stop_words) 
+    {
+        for(const auto& word : stop_words) {
+            CheckUnacceptableSymbols(word);
+            stop_words_.insert(word);
         }
     }
 
-    void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& rates) {
-        std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
-        if(words_no_stop.empty()) return;
+    explicit SearchServer(const std::string& stop_words_text) 
+    {   
+        std::vector<std::string> stop_words_vector = SplitIntoWords(stop_words_text);
 
-        int avg_rating = ComputeAverageRating(rates);
-        document_to_rating_[document_id] = avg_rating;
+        for(auto& word : stop_words_vector) {
+            CheckUnacceptableSymbols(word);
+            stop_words_.insert(std::move(word));
+        }
+    }
 
-        document_to_status_[document_id] = status;
+    void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings) {
+        if(document_id < 0) {
+            throw std::invalid_argument("document_id can't be less than 0!");
+        }
 
+        if(auto it = id_to_rating_status_.find(document_id); it != id_to_rating_status_.end()) {
+            throw std::invalid_argument("document already exists!");
+        }
         std::map<std::string, int> words_to_count;
-        for (const std::string& word : words_no_stop) {
+        std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
+        for(const auto& word : words_no_stop) {
+            CheckUnacceptableSymbols(word);
             ++words_to_count[word];
         }
         for(const auto& [word, count] : words_to_count) {
             word_to_documents_freqs_[word].insert({document_id, static_cast<double>(count) / words_no_stop.size()});
         }
+        
+        int avg_rating = ComputeAverageRating(ratings);
+        id_to_rating_status_.insert({document_id, {avg_rating, status}});
         ++document_count_;
     }
 
-    // void SetStopWords(const std::string& text) {
-    //     for (const std::string& word : SplitIntoWords(text)) {
-    //         stop_words_.insert(word);
-    //     }
-    // }
-
-    int GetDocumentsCount() const noexcept {
-        return document_count_;
-    }
-
-    template <typename Predicate>
+    template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(
-            const std::string& raw_query, Predicate pred) const {
+            const std::string& raw_query, DocumentPredicate document_predicate) const {
 
         std::vector<Document> top_documents;
         top_documents.reserve(MAX_RESULT_DOCUMENT_COUNT);
@@ -127,18 +120,14 @@ public:
             if(top_documents.size() == MAX_RESULT_DOCUMENT_COUNT) break;
         
             int id = all_documents[i].id_;
-            DocumentStatus status = document_to_status_.at(id);
+            DocumentStatus status = id_to_rating_status_.at(id).second;
             int rating = all_documents[i].rating_;
 
-            if(pred(id, status, rating)) {
+            if(document_predicate(id, status, rating)) {
                 top_documents.push_back(all_documents[i]);
             }
         }
         return top_documents;
-    }
-
-    std::vector<Document> FindTopDocuments(const std::string& raw_query) const {
-        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
     }
 
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
@@ -149,6 +138,14 @@ public:
         return FindTopDocuments(raw_query, pred);
     }
 
+    std::vector<Document> FindTopDocuments(const std::string& raw_query) const {
+        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
+    }
+
+    int GetDocumentsCount() const noexcept {
+        return document_count_;
+    }
+
     std::tuple<std::vector<std::string>, DocumentStatus> 
     MatchDocument(const std::string& raw_query, int document_id) const {
         std::vector<std::string> plus_words;
@@ -156,7 +153,7 @@ public:
 
         for(const auto& mw : query_words.minus_words_) {
             if (auto it = word_to_documents_freqs_.find(mw); it != word_to_documents_freqs_.end() && it->second.contains(document_id)) {
-                return {{}, document_to_status_.at(document_id)};
+                return {{}, id_to_rating_status_.at(document_id).second};
             }
         }
         for(const auto& pw : query_words.plus_words_) {
@@ -164,7 +161,7 @@ public:
                 plus_words.push_back(pw);
             }
         }
-        return {plus_words, document_to_status_.at(document_id)};
+        return {plus_words, id_to_rating_status_.at(document_id).second};
     }
     
 private:  
@@ -175,11 +172,14 @@ private:
             if (c == ' ' && !word.empty()) {
                 words.push_back(word);
                 word = "";
-            } else {
+            } else if(c != ' '){
                 word += c;
             }
         }
-        words.push_back(word);
+
+        if (!word.empty()) {
+            words.push_back(word);
+        }
 
         return words;
     }
@@ -194,27 +194,15 @@ private:
         return words;
     }
 
-    Query ParseQuery(const std::string& raw_query) const {
-        Query query_words;
-        for (const std::string& word : SplitIntoWords(raw_query)) {
-            if(word[0] == '-') {
-                query_words.minus_words_.insert(word.substr(1));
-            } else {
-                query_words.plus_words_.insert(word);
-            }
-        }
-        return query_words;
-    }
-
     int GetRating(int document_id) const {
-        if(auto it = document_to_rating_.find(document_id); it != document_to_rating_.end()) {
-            return it->second;
+        if(auto it = id_to_rating_status_.find(document_id); it != id_to_rating_status_.end()) {
+            return it->second.first;;
         }
         return 0;
     }
 
-    std::vector<Document> FindAllDocuments(const std::string& query) const {
-        const Query query_words = ParseQuery(query);
+    std::vector<Document> FindAllDocuments(const std::string& raw_query) const {
+        const Query query_words = ParseQuery(raw_query);
         std::map<int, double> document_to_relevance;
 
         for (const std::string& plus_word : query_words.plus_words_) {
@@ -254,6 +242,34 @@ private:
 
         return avg_rating;
     }
+
+    void CheckUnacceptableSymbols(const std::string& word) const {
+        if(word.empty()) {
+            throw std::invalid_argument("Stop words can't be empty!");
+        }
+
+        for(char ch : word) {
+            if(ch >= 0 && ch <= 32) {
+                throw std::invalid_argument("Stop words can't contain special symbols (ASCII 0 - 32)");
+            }
+        }
+    }
+
+    Query ParseQuery(const std::string& raw_query) const {
+        Query query_words;
+        for (const std::string& word : SplitIntoWordsNoStop(raw_query)) {
+            CheckUnacceptableSymbols(word);
+            if(word[0] == '-') {
+                if(word.size() == 1 || word[1] == '-') {
+                    throw std::invalid_argument("Word can't be '-' or '--...'!");
+                }
+                query_words.minus_words_.insert(word.substr(1));
+            } else {
+                query_words.plus_words_.insert(word);
+            }
+        }
+        return query_words;
+    }
 };
 
 std::string ReadLine() {
@@ -279,29 +295,6 @@ void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& w
     }
     std::cout << "}"s << std::endl;
 }
-
-// SearchServer CreateSearchServer() {
-//     SearchServer search_server;
-//     search_server.SetStopWords(ReadLine());
-//     const int document_count = ReadLineWithNumber();
-
-//     for (int document_id = 0; document_id < document_count; ++document_id) {
-//         std::string text = ReadLine();
-
-//         int rates_count; std::cin >> rates_count;
-//         std::vector<int> rates(rates_count);
-
-//         int current_rate;
-//         for(int i = 0; i < rates_count; ++i) {
-//             std::cin >> current_rate;
-//             rates[i] = current_rate;
-//         }
-//         std::cin.ignore();
-
-//         search_server.AddDocument(document_id, text, rates);
-//     }
-//     return search_server;
-// }
 
 void PrintDocument(const SearchServer::Document& document) {
     std::cout << "{ "s
@@ -551,14 +544,6 @@ void TestSearchServer() {
 }
 
 int main() {
-    TestSearchServer();
-    const std::vector<std::string> stop_words_vector = {"и"s, "в"s, "на"s, ""s, "в"s};
-    SearchServer search_server1(stop_words_vector);
-
-    // Инициализируем поисковую систему передавая стоп-слова в контейнере set
-    const std::set<std::string> stop_words_set = {"и"s, "в"s, "на"s};
-    SearchServer search_server2(stop_words_set);
-
-    // Инициализируем поисковую систему строкой со стоп-словами, разделёнными пробелами
-    SearchServer search_server3("  и  в на   "s);
+   TestSearchServer();
 }
+
