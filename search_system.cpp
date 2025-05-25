@@ -608,33 +608,65 @@ auto Paginate(const Container& c, size_t page_size) {
 
 class RequestQueue {
 public:
-    explicit RequestQueue(const SearchServer& search_server) {
-        // напишите реализацию
+    explicit RequestQueue(const SearchServer& search_server)
+        : search_server_(search_server) {
     }
-    // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для нашей статистики
+
+    RequestQueue(const RequestQueue&) = delete;
+    RequestQueue& operator=(const RequestQueue&) = delete;
+
     template <typename DocumentPredicate>
     std::vector<SearchServer::Document> AddFindRequest(const std::string& raw_query, DocumentPredicate document_predicate) {
-        // напишите реализацию
+        QueryResult query_result = std::move(search_server_.FindTopDocuments(raw_query, document_predicate));
+        AddQueryResult(std::move(query_result));
+        return requests_.front().results_;
     }
 
     std::vector<SearchServer::Document> AddFindRequest(const std::string& raw_query, SearchServer::DocumentStatus status) {
-        // напишите реализацию
+        QueryResult query_result = std::move(search_server_.FindTopDocuments(raw_query, status));
+        AddQueryResult(std::move(query_result));
+        return requests_.front().results_;
     }
 
     std::vector<SearchServer::Document> AddFindRequest(const std::string& raw_query) {
-        // напишите реализацию
+        QueryResult query_result = std::move(search_server_.FindTopDocuments(raw_query));
+        AddQueryResult(std::move(query_result));
+        return requests_.front().results_;
     }
 
     int GetNoResultRequests() const {
-        // напишите реализацию
+        return empty_requests_count_;
     }
 private:
     struct QueryResult {
-        // определите, что должно быть в структуре
+        std::vector<SearchServer::Document> results_;
+
+        QueryResult(std::vector<SearchServer::Document>&& results)
+            : results_(std::move(results)) 
+        {}
+
+        QueryResult(QueryResult&& other)
+            : results_(std::move(other.results_)) 
+        {}
     };
     std::deque<QueryResult> requests_;
     const static int min_in_day_ = 1440;
-    // возможно, здесь вам понадобится что-то ещё
+    int empty_requests_count_ = 0;
+    const SearchServer& search_server_;
+
+    void AddQueryResult(QueryResult&& query_result) {
+        if(requests_.size() == min_in_day_) {
+            if(requests_.back().results_.empty()) {
+                --empty_requests_count_;
+            }
+            requests_.pop_back();
+        }
+
+        if(query_result.results_.empty()) {
+            ++empty_requests_count_;
+        }
+        requests_.emplace_front(std::move(query_result));
+    }
 };
 
 int main() {
