@@ -42,5 +42,17 @@ public:
 
 template <typename Container>
 auto Paginate(const Container& c, size_t page_size) {
+    if(page_size == 0) {
+        throw std::invalid_argument("page size can't be 0!");
+    }
     return Paginator(begin(c), end(c), page_size);
+}
+
+template <typename Iterator>
+std::ostream& operator<<(std::ostream& out, const IteratorRange<Iterator>& iter_range) {
+    for(const auto& obj : iter_range) {
+        out << obj;
+    }
+
+    return out;
 }

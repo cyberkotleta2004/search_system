@@ -3,9 +3,11 @@
 #include <vector>
 #include "search_server.h"
 #include "testing_framework.h"
+#include "paginator.h"
+#include "request_queue.h"
 
 namespace {
-    void TestAddedDocumentFind() {
+    void TestDocumentAdding() {
         const int doc_id = 42;
         const std::string content = "cat in the city"s;
         const std::vector<int> ratings = {1, 2, 3};
@@ -55,7 +57,7 @@ namespace {
         }
     }
     
-    void TestMinusWordsWorks() {
+    void TestMinusWords() {
         const int doc_id = 42;
         const std::string content = "cat in the city"s;
         const std::vector<int> ratings = {1, 2, 3};
@@ -100,7 +102,7 @@ namespace {
         }
     }
     
-    void TestRelevanceSortWorks() {
+    void TestRelevanceSort() {
         
         {
             SearchServer server;
@@ -124,7 +126,7 @@ namespace {
         }
     }
     
-    void TestRatingCountsCorrectly() {
+    void TestRatingCounting() {
         {
             SearchServer server;
             server.AddDocument(1, "cat"s, SearchServer::DocumentStatus::ACTUAL, {-4, 2, -7, -7});
@@ -158,7 +160,7 @@ namespace {
         }
     }
     
-    void TestPredicateWorks() {
+    void TestPredicate() {
         const int doc_id = 42;
         const std::string content = "cat in the city"s;
         const std::vector<int> ratings = {1, 2, 3};
@@ -186,7 +188,7 @@ namespace {
         }
     }
     
-    void TestStatusPredWorks() {
+    void TestStatusPredicate() {
         const int doc_id = 42;
         const std::string content = "cat in the city"s;
         const std::vector<int> ratings = {1, 2, 3};
@@ -215,7 +217,7 @@ namespace {
         }
     }
     
-    void TestRelevanceCountWorks() {
+    void TestRelevanceCounting() {
         SearchServer search_server("и в на"s);
         search_server.AddDocument(0, "белый кот и модный ошейник"s,        SearchServer:: DocumentStatus::ACTUAL, {8, -3});
         search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
@@ -227,16 +229,92 @@ namespace {
         ASSERT(documents[1].relevance_ - 0.173287 <= EPSILON * std::max(documents[0].relevance_, 0.173287));
         ASSERT(documents[2].relevance_ - 0.173287 <= EPSILON * std::max(documents[0].relevance_, 0.173287));
     }
+
+    void TestPaginator() {
+        {
+            SearchServer search_server("and with"s);
+
+            search_server.AddDocument(1, "funny pet and nasty rat"s, SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
+            search_server.AddDocument(2, "funny pet with curly hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
+            search_server.AddDocument(3, "big cat nasty hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 8});
+            search_server.AddDocument(4, "big dog cat Vladislav"s, SearchServer::DocumentStatus::ACTUAL, {1, 3, 2});
+            search_server.AddDocument(5, "big dog hamster Borya"s, SearchServer::DocumentStatus::ACTUAL, {1, 1, 1});
+
+            const auto search_results = search_server.FindTopDocuments("curly dog"s);
+            int page_size_1 = 2;
+            int page_size_2 = 5;
+            int page_size_3 = 1;
+            int page_size_4 = 0;
+
+            const auto pages_1 = Paginate(search_results, page_size_1);
+            const auto pages_2 = Paginate(search_results, page_size_2);
+            const auto pages_3 = Paginate(search_results, page_size_3);
+            try {
+                const auto pages_4 = Paginate(search_results, page_size_4);
+            } catch(const std::invalid_argument& ia) {
+                ASSERT_EQUAL(ia.what(), "page size can't be 0!"s);
+            }
+
+            ASSERT_EQUAL(pages_1.size(), 2);
+            ASSERT_EQUAL(pages_2.size(), 1);
+            ASSERT_EQUAL(pages_3.size(), 3);
+        }
+    }
+
+    void TestRequestQueue() {
+        {
+            SearchServer search_server("and in at"s);
+            RequestQueue request_queue(search_server);
+
+            search_server.AddDocument(1, "curly cat curly tail"s, SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
+            search_server.AddDocument(2, "curly dog and fancy collar"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
+            search_server.AddDocument(3, "big cat fancy collar "s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 8});
+            search_server.AddDocument(4, "big dog sparrow Eugene"s, SearchServer::DocumentStatus::ACTUAL, {1, 3, 2});
+            search_server.AddDocument(5, "big dog sparrow Vasiliy"s, SearchServer::DocumentStatus::ACTUAL, {1, 1, 1});
+
+            // 1439 запросов с нулевым результатом
+            for (int i = 0; i < 1439; ++i) {
+                request_queue.AddFindRequest("empty request"s);
+            }
+            // все еще 1439 запросов с нулевым результатом
+            request_queue.AddFindRequest("curly dog"s);
+            // новые сутки, первый запрос удален, 1438 запросов с нулевым результатом
+            request_queue.AddFindRequest("big collar"s);
+            // первый запрос удален, 1437 запросов с нулевым результатом
+            request_queue.AddFindRequest("sparrow"s);
+            ASSERT_EQUAL(request_queue.GetNoResultRequests(), 1437);
+        }
+
+        {
+            SearchServer search_server("and in at"s);
+            RequestQueue request_queue(search_server);
+
+            search_server.AddDocument(1, "curly cat curly tail"s, SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
+            search_server.AddDocument(2, "curly dog and fancy collar"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
+            search_server.AddDocument(3, "big cat fancy collar "s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 8});
+            search_server.AddDocument(4, "big dog sparrow Eugene"s, SearchServer::DocumentStatus::ACTUAL, {1, 3, 2});
+            search_server.AddDocument(5, "big dog sparrow Vasiliy"s, SearchServer::DocumentStatus::ACTUAL, {1, 1, 1});
+
+            // 1439 запросов с нулевым результатом
+            for (int i = 0; i < 5; ++i) {
+                request_queue.AddFindRequest("cat dog"s);
+            }
+
+            ASSERT_EQUAL(request_queue.GetNoResultRequests(), 0);
+        }
+    }
 }
 
 void TestSearchServer() {
-    RUN_TEST(TestAddedDocumentFind);
+    RUN_TEST(TestDocumentAdding);
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
-    RUN_TEST(TestMinusWordsWorks);
+    RUN_TEST(TestMinusWords);
     RUN_TEST(TestDocumentsMatching);
-    RUN_TEST(TestRelevanceSortWorks);
-    RUN_TEST(TestRatingCountsCorrectly);
-    RUN_TEST(TestPredicateWorks);
-    RUN_TEST(TestStatusPredWorks);
-    RUN_TEST(TestRelevanceCountWorks);
+    RUN_TEST(TestRelevanceSort);
+    RUN_TEST(TestRatingCounting);
+    RUN_TEST(TestPredicate);
+    RUN_TEST(TestStatusPredicate);
+    RUN_TEST(TestRelevanceCounting);
+    RUN_TEST(TestPaginator);
+    RUN_TEST(TestRequestQueue);
 }

@@ -118,13 +118,3 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& out, const SearchServer::Document& document);
-
-template <typename Iterator>
-std::ostream& operator<<(std::ostream& out, const IteratorRange<Iterator>& iter_range) {
-    for(const auto& obj : iter_range) {
-        out << obj;
-    }
-
-    return out;
-}
-
