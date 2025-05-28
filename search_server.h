@@ -23,13 +23,14 @@ public:
     };
 
     struct Document {
+        int id_;
         int rating_;
         double relevance_;
         std::unordered_map<std::string, double> word_to_freqs_;
         DocumentStatus status_;
 
         Document();
-        Document(int rating, DocumentStatus status);
+        Document(int id, int rating, DocumentStatus status);
     };
 
 private:
@@ -83,7 +84,7 @@ public:
             if(top_documents.size() == MAX_RESULT_DOCUMENT_COUNT) break;
         
             int id = all_documents[i].id_;
-            DocumentStatus status = id_to_rating_status_.at(id).second;
+            DocumentStatus status = all_documents[i].status_;
             int rating = all_documents[i].rating_;
 
             if(document_predicate(id, status, rating)) {

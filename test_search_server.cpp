@@ -14,25 +14,25 @@ namespace {
         
         {
             SearchServer server;
-            ASSERT_EQUAL(server.GetDocumentsCount(), 0);
+            ASSERT_EQUAL(server.GetDocumentCount(), 0);
             server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-            ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+            ASSERT_EQUAL(server.GetDocumentCount(), 1);
             ASSERT_EQUAL(server.FindTopDocuments("cat"s).size(), 1);
         }
     
         {
             SearchServer server;
-            ASSERT_EQUAL(server.GetDocumentsCount(), 0);
+            ASSERT_EQUAL(server.GetDocumentCount(), 0);
             server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-            ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+            ASSERT_EQUAL(server.GetDocumentCount(), 1);
             ASSERT_EQUAL(server.FindTopDocuments("dog"s).size(), 0);
         }
     
         {
             SearchServer server;
-            ASSERT_EQUAL(server.GetDocumentsCount(), 0);
+            ASSERT_EQUAL(server.GetDocumentCount(), 0);
             server.AddDocument(doc_id, content, SearchServer::DocumentStatus::ACTUAL, ratings);
-            ASSERT_EQUAL(server.GetDocumentsCount(), 1);
+            ASSERT_EQUAL(server.GetDocumentCount(), 1);
             ASSERT_EQUAL(server.FindTopDocuments("").size(), 0);
         }
     }

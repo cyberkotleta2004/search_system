@@ -6,8 +6,9 @@ SearchServer::Document::Document()
     , relevance_(0.0)
     , status_(DocumentStatus::ACTUAL) {}
 
-SearchServer::Document::Document(int rating, DocumentStatus status)
-    : rating_(rating)
+SearchServer::Document::Document(int id, int rating, DocumentStatus status)
+    : id_(id)
+    , rating_(rating)
     , status_(status) {}
 
 SearchServer::SearchServer(const std::string& stop_words_text) {   
@@ -36,7 +37,7 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
     }
 
     int avg_rating = ComputeAverageRating(ratings);
-    id_to_document_.insert({document_id, {avg_rating, status}});
+    id_to_document_.insert({document_id, {document_id, avg_rating, status}});
 
     for(const auto& [word, count] : word_to_count) {
         id_to_document_[document_id].word_to_freqs_[word] = static_cast<double>(count) / words_no_stop.size();
@@ -206,6 +207,7 @@ SearchServer::Query SearchServer::ParseQuery(const std::string& raw_query) const
 
 std::ostream& operator<<(std::ostream& out, const SearchServer::Document& document) {
     out << "{ "s
+    << "document_id = "s << document.id_ << ", "s
     << "relevance = "s << document.relevance_ << ", "s
     << "rating = "s << document.rating_
     << " }"s;
