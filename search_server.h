@@ -2,7 +2,7 @@
 #include <string>
 #include <set>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <iostream>
 #include <execution>
 #include <algorithm>
@@ -23,12 +23,13 @@ public:
     };
 
     struct Document {
-        int id_;
         int rating_;
         double relevance_;
+        std::unordered_map<std::string, double> word_to_freqs_;
+        DocumentStatus status_;
 
         Document();
-        Document(int id, int rating, double relevance);
+        Document(int rating, DocumentStatus status);
     };
 
 private:
@@ -38,9 +39,9 @@ private:
     };
 
 private:
-    std::map<std::string, std::map<int, double>> word_to_documents_freqs_;
     std::set<std::string> stop_words_;
-    std::map<int, std::pair<int, SearchServer::DocumentStatus>> id_to_rating_status_;
+    std::unordered_map<int, Document> id_to_document_;
+    std::unordered_map<std::string, int> word_to_count_;
     int document_count_ = 0;
 
 public:
@@ -96,11 +97,18 @@ public:
 
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
 
-    int GetDocumentsCount() const noexcept;
+    int GetDocumentCount() const noexcept;
 
     std::tuple<std::vector<std::string>, DocumentStatus> 
     MatchDocument(const std::string& raw_query, int document_id) const;
-    
+
+    auto begin() noexcept;
+    auto end() noexcept;
+    const auto begin() const noexcept;
+    const auto end() const noexcept;
+    const auto cbegin() noexcept;
+    const auto cend() noexcept;
+
 private:  
     std::vector<std::string> SplitIntoWords(const std::string& text) const;
 

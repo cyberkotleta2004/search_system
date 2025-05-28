@@ -2,22 +2,38 @@
 #include "log_duration.h"
 #include <iostream>
 
+void AddDocument(SearchServer& search_server, int id, std::string&& text, SearchServer::DocumentStatus status, std::vector<int>&& ratings) {
+    search_server.AddDocument(id, std::move(text), status, std::move(ratings));
+}
+
 int main() {
-    SearchServer search_server("and in at"s);
+    SearchServer search_server("and with"s);
 
-    search_server.AddDocument(1, "curly cat curly tail"s, SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
-    search_server.AddDocument(2, "curly dog and fancy collar"s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 3});
-    search_server.AddDocument(3, "big cat fancy collar "s, SearchServer::DocumentStatus::ACTUAL, {1, 2, 8});
-    search_server.AddDocument(4, "big dog sparrow Eugene"s, SearchServer::DocumentStatus::ACTUAL, {1, 3, 2});
-    search_server.AddDocument(5, "big dog sparrow Vasiliy"s, SearchServer::DocumentStatus::ACTUAL, {1, 1, 1});
+    AddDocument(search_server, 1, "funny pet and nasty rat"s, SearchServer::DocumentStatus::ACTUAL, {7, 2, 7});
+    AddDocument(search_server, 2, "funny pet with curly hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
 
-    {
-        LOG_DURATION_STREAM("Task_1", std::cout);
-        search_server.FindTopDocuments("cat -dog");
-    }
+    // дубликат документа 2, будет удалён
+    AddDocument(search_server, 3, "funny pet with curly hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
 
-    {
-        LOG_DURATION_STREAM("Task_2", std::cout);
-        search_server.FindTopDocuments("dog -cat");
-    }
+    // отличие только в стоп-словах, считаем дубликатом
+    AddDocument(search_server, 4, "funny pet and curly hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+
+    // множество слов такое же, считаем дубликатом документа 1
+    AddDocument(search_server, 5, "funny funny pet and nasty nasty rat"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+
+    // добавились новые слова, дубликатом не является
+    AddDocument(search_server, 6, "funny pet and not very nasty rat"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+
+    // множество слов такое же, как в id 6, несмотря на другой порядок, считаем дубликатом
+    AddDocument(search_server, 7, "very nasty rat and not very funny pet"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+
+    // есть не все слова, не является дубликатом
+    AddDocument(search_server, 8, "pet with rat and rat and rat"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+
+    // слова из разных документов, не является дубликатом
+    AddDocument(search_server, 9, "nasty rat with curly hair"s, SearchServer::DocumentStatus::ACTUAL, {1, 2});
+    
+    std::cout << "Before duplicates removed: "s << search_server.GetDocumentCount() << std::endl;
+    // RemoveDuplicates(search_server);
+    std::cout << "After duplicates removed: "s << search_server.GetDocumentCount() << std::endl;
 }
