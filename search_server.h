@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <set>
+#include <unordered_set>
 #include <vector>
 #include <unordered_map>
 #include <iostream>
@@ -35,12 +35,12 @@ public:
 
 private:
     struct Query {
-        std::set<std::string> plus_words_;
-        std::set<std::string> minus_words_;
+        std::unordered_set<std::string> plus_words_;
+        std::unordered_set<std::string> minus_words_;
     };
 
 private:
-    std::set<std::string> stop_words_;
+    std::unordered_set<std::string> stop_words_;
     std::unordered_map<int, Document> id_to_document_;
     std::unordered_map<std::string, int> word_to_count_;
     int document_count_ = 0;
@@ -103,12 +103,19 @@ public:
     std::tuple<std::vector<std::string>, DocumentStatus> 
     MatchDocument(const std::string& raw_query, int document_id) const;
 
-    auto begin() noexcept;
-    auto end() noexcept;
-    const auto begin() const noexcept;
-    const auto end() const noexcept;
-    const auto cbegin() noexcept;
-    const auto cend() noexcept;
+    const std::unordered_map<std::string, double>& GetWordFrequencies(int document_id) const;
+    void RemoveDocument(int document_id);
+
+    using iterator = std::unordered_map<int, Document>::iterator;
+    using const_iterator = std::unordered_map<int, Document>::const_iterator;
+
+
+    iterator begin() noexcept;
+    iterator end() noexcept;
+    const_iterator begin() const noexcept;
+    const_iterator end() const noexcept;
+    const_iterator cbegin() noexcept;
+    const_iterator cend() noexcept;
 
 private:  
     std::vector<std::string> SplitIntoWords(const std::string& text) const;
@@ -127,3 +134,15 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& out, const SearchServer::Document& document);
+
+struct HashSetHasher {
+    size_t operator() (const std::unordered_set<std::string>& s) const {
+        size_t hash = 0;
+        for(const std::string& word : s) {
+            hash ^= std::hash<std::string>{}(word) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        }
+        return hash;
+    }
+};
+
+void RemoveDuplicates(SearchServer& search_server);

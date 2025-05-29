@@ -81,24 +81,40 @@ SearchServer::MatchDocument(const std::string& raw_query, int document_id) const
     return {plus_words, current_document.status_};
 }
 
-    auto SearchServer::begin() noexcept {
-        return id_to_document_.begin();
+void SearchServer::RemoveDocument(int document_id) {
+    if(auto it = id_to_document_.find(document_id); it != id_to_document_.end()) {
+        for(const auto& [word, _] : it->second.word_to_freqs_) {
+            if(word_to_count_.at(word) == 1) {
+                word_to_count_.erase(word);
+            } else {
+                --word_to_count_[word];
+            }
+        }
+
+        id_to_document_.erase(document_id);
+        --document_count_;
     }
-    auto SearchServer::end() noexcept {
-        return id_to_document_.end();
-    }
-    const auto SearchServer::begin() const noexcept {
-        return id_to_document_.begin();
-    }
-    const auto SearchServer::end() const noexcept {
-        return id_to_document_.end();
-    }
-    const auto SearchServer::cbegin() noexcept {
-        return id_to_document_.cbegin();
-    }
-    const auto SearchServer::cend() noexcept {
-        return id_to_document_.cend();
-    }
+}
+
+SearchServer::iterator SearchServer::begin() noexcept {
+    return id_to_document_.begin();
+}
+
+SearchServer::iterator SearchServer::end() noexcept {
+    return id_to_document_.end();
+}
+SearchServer::const_iterator SearchServer::begin() const noexcept {
+    return id_to_document_.begin();
+}
+SearchServer::const_iterator SearchServer::end() const noexcept {
+    return id_to_document_.end();
+}
+SearchServer::const_iterator SearchServer::cbegin() noexcept {
+    return id_to_document_.cbegin();
+}
+SearchServer::const_iterator SearchServer::cend() noexcept {
+    return id_to_document_.cend();
+}
 
 std::vector<std::string> SearchServer::SplitIntoWords(const std::string& text) const {
     std::vector<std::string> words;
@@ -203,6 +219,27 @@ SearchServer::Query SearchServer::ParseQuery(const std::string& raw_query) const
         }
     }
     return query_words;
+}
+
+void RemoveDuplicates(SearchServer& search_server) {
+    std::unordered_set<std::unordered_set<std::string>, HashSetHasher> sets;
+    std::vector<int> duplicates_ids;
+
+    for (const auto& [document_id, document] : search_server) {
+        std::unordered_set<std::string> current_set;
+        for(const auto& [word, _] : document.word_to_freqs_) {
+            current_set.insert(word);
+        }
+
+        if(sets.contains(current_set)) {
+            duplicates_ids.push_back(document_id);
+        }
+        sets.insert(current_set);
+    }
+
+    for(auto id : duplicates_ids) {
+        search_server.RemoveDocument(id);
+    }
 }
 
 std::ostream& operator<<(std::ostream& out, const SearchServer::Document& document) {
