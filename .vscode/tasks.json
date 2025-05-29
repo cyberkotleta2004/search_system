@@ -23,12 +23,13 @@
             "label": "C/C++: g++ build active file",
             "command": "/usr/lib64/ccache/g++",
             "args": [
-                "-std=c++23",
                 "-fdiagnostics-color=always",
+                "-std=c++23",
                 "-g",
-                "${file}",
+                "main.cpp",
+                "search_server.cpp",
                 "-o",
-                "${fileDirname}/${fileBasenameNoExtension}"
+                "/home/anton/University/Dev/search_system/main"
             ],
             "options": {
                 "cwd": "${fileDirname}"

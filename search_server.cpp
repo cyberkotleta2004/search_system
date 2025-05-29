@@ -222,11 +222,11 @@ SearchServer::Query SearchServer::ParseQuery(const std::string& raw_query) const
 }
 
 void RemoveDuplicates(SearchServer& search_server) {
-    std::unordered_set<std::unordered_set<std::string>, HashSetHasher> sets;
+    std::set<std::set<std::string>> sets;
     std::vector<int> duplicates_ids;
 
     for (const auto& [document_id, document] : search_server) {
-        std::unordered_set<std::string> current_set;
+        std::set<std::string> current_set;
         for(const auto& [word, _] : document.word_to_freqs_) {
             current_set.insert(word);
         }

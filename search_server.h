@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
-#include <unordered_set>
+#include <set>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include <iostream>
 #include <execution>
 #include <algorithm>
@@ -26,7 +26,7 @@ public:
         int id_;
         int rating_;
         double relevance_;
-        std::unordered_map<std::string, double> word_to_freqs_;
+        std::map<std::string, double> word_to_freqs_;
         DocumentStatus status_;
 
         Document();
@@ -35,14 +35,14 @@ public:
 
 private:
     struct Query {
-        std::unordered_set<std::string> plus_words_;
-        std::unordered_set<std::string> minus_words_;
+        std::set<std::string> plus_words_;
+        std::set<std::string> minus_words_;
     };
 
 private:
-    std::unordered_set<std::string> stop_words_;
-    std::unordered_map<int, Document> id_to_document_;
-    std::unordered_map<std::string, int> word_to_count_;
+    std::set<std::string> stop_words_;
+    std::map<int, Document> id_to_document_;
+    std::map<std::string, int> word_to_count_;
     int document_count_ = 0;
 
 public:
@@ -103,11 +103,11 @@ public:
     std::tuple<std::vector<std::string>, DocumentStatus> 
     MatchDocument(const std::string& raw_query, int document_id) const;
 
-    const std::unordered_map<std::string, double>& GetWordFrequencies(int document_id) const;
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
     void RemoveDocument(int document_id);
 
-    using iterator = std::unordered_map<int, Document>::iterator;
-    using const_iterator = std::unordered_map<int, Document>::const_iterator;
+    using iterator = std::map<int, Document>::iterator;
+    using const_iterator = std::map<int, Document>::const_iterator;
 
 
     iterator begin() noexcept;
@@ -134,15 +134,5 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& out, const SearchServer::Document& document);
-
-struct HashSetHasher {
-    size_t operator() (const std::unordered_set<std::string>& s) const {
-        size_t hash = 0;
-        for(const std::string& word : s) {
-            hash ^= std::hash<std::string>{}(word) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-        }
-        return hash;
-    }
-};
 
 void RemoveDuplicates(SearchServer& search_server);
