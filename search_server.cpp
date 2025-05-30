@@ -12,16 +12,16 @@ SearchServer::Document::Document(int id, int rating, DocumentStatus status)
     , rating_(rating)
     , status_(status) {}
 
-SearchServer::SearchServer(std::string_view stop_words_text) {   
-    std::vector<std::string_view> stop_words_vector = SplitIntoWords(stop_words_text);
+SearchServer::SearchServer(std::string_view stop_words_text_sv) {   
+    std::vector<std::string_view> stop_words_vector = SplitIntoWords(stop_words_text_sv);
 
-    for(std::string_view word : stop_words_vector) {
-        CheckUnacceptableSymbols(word);
-        stop_words_.insert(std::string(word));
+    for(std::string_view word_sv : stop_words_vector) {
+        CheckUnacceptableSymbols(word_sv);
+        stop_words_.insert(std::string(word_sv));
     }
 }
 
-void SearchServer::AddDocument(int document_id, std::string_view document, DocumentStatus status, const std::vector<int>& ratings) {
+void SearchServer::AddDocument(int document_id, std::string_view document_sv, DocumentStatus status, const std::vector<int>& ratings) {
     if(document_id < 0) {
         throw std::invalid_argument("document_id can't be less than 0!");
     }
@@ -31,15 +31,15 @@ void SearchServer::AddDocument(int document_id, std::string_view document, Docum
     }
 
     std::unordered_map<std::string_view, int> word_to_count;
-    std::vector<std::string_view> words_no_stop = SplitIntoWordsNoStop(document);
-    for(std::string_view word : words_no_stop) {
-        CheckUnacceptableSymbols(word);
-        ++word_to_count[word];
+    std::vector<std::string_view> words_no_stop = SplitIntoWordsNoStop(document_sv);
+    for(std::string_view word_sv : words_no_stop) {
+        CheckUnacceptableSymbols(word_sv);
+        ++word_to_count[word_sv];
     }
     
     std::set<std::string_view> words_no_stop_set(words_no_stop.begin(), words_no_stop.end());
-    for(std::string_view word : words_no_stop_set) {
-        ++word_to_count_[std::string(word)];
+    for(std::string_view word_sv : words_no_stop_set) {
+        ++word_to_count_[std::string(word_sv)];
     }
     
     int avg_rating = ComputeAverageRating(ratings);
@@ -52,16 +52,16 @@ void SearchServer::AddDocument(int document_id, std::string_view document, Docum
     ++document_count_;
 }
 
-std::vector<SearchServer::Document> SearchServer::FindTopDocuments(std::string_view raw_query, DocumentStatus status) const {
+std::vector<SearchServer::Document> SearchServer::FindTopDocuments(std::string_view raw_query_sv, DocumentStatus status) const {
     auto pred = [status](int id, DocumentStatus s, int r) {
         return s == status;
     };
 
-    return FindTopDocuments(raw_query, pred);
+    return FindTopDocuments(raw_query_sv, pred);
 }
 
-std::vector<SearchServer::Document> SearchServer::FindTopDocuments(std::string_view raw_query) const {
-    return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
+std::vector<SearchServer::Document> SearchServer::FindTopDocuments(std::string_view raw_query_sv) const {
+    return FindTopDocuments(raw_query_sv, DocumentStatus::ACTUAL);
 }
 
 int SearchServer::GetDocumentCount() const noexcept {
@@ -69,8 +69,8 @@ int SearchServer::GetDocumentCount() const noexcept {
 }
 
 std::tuple<std::vector<std::string_view>, SearchServer::DocumentStatus> 
-SearchServer::MatchDocument(std::string_view raw_query, int document_id) const {
-    return SearchServer::MatchDocument(std::execution::seq, raw_query, document_id);
+SearchServer::MatchDocument(std::string_view raw_query_sv, int document_id) const {
+    return SearchServer::MatchDocument(std::execution::seq, raw_query_sv, document_id);
 }
 
  void SearchServer::RemoveDocument(int document_id) {
@@ -114,21 +114,21 @@ SearchServer::const_iterator SearchServer::cend() noexcept {
     return id_to_document_.cend();
 }
 
-std::vector<std::string_view> SearchServer::SplitIntoWords(std::string_view text) const {
+std::vector<std::string_view> SearchServer::SplitIntoWords(std::string_view text_sv) const {
     std::vector<std::string_view> words;
     size_t pos = 0;
-    size_t len = text.length();
+    size_t len = text_sv.length();
 
     while(pos < len) {
-        size_t space_pos = text.find(' ', pos);
+        size_t space_pos = text_sv.find(' ', pos);
 
-        if(space_pos == text.npos) {
-            words.emplace_back(text.substr(pos));
+        if(space_pos == text_sv.npos) {
+            words.emplace_back(text_sv.substr(pos));
             break;
         }
 
         if(space_pos > pos) {
-            words.emplace_back(text.substr(pos, space_pos - pos));
+            words.emplace_back(text_sv.substr(pos, space_pos - pos));
         }
 
         pos = space_pos + 1;
@@ -136,9 +136,9 @@ std::vector<std::string_view> SearchServer::SplitIntoWords(std::string_view text
     return words;
 }
 
-std::vector<std::string_view> SearchServer::SplitIntoWordsNoStop(std::string_view text) const {
+std::vector<std::string_view> SearchServer::SplitIntoWordsNoStop(std::string_view text_sv) const {
     std::vector<std::string_view> words;
-    for (std::string_view word : SplitIntoWords(text)) {
+    for (std::string_view word : SplitIntoWords(text_sv)) {
         if (stop_words_.count(word) == 0) {
             words.push_back(word);
         }

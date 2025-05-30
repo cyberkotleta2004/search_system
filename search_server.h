@@ -59,22 +59,22 @@ public:
     }
 
     
-    explicit SearchServer(std::string_view stop_words_text);
+    explicit SearchServer(std::string_view stop_words_text_sv);
     
     explicit SearchServer(const std::string& string) 
         : SearchServer(std::string_view(string)) 
     {}
 
-    void AddDocument(int document_id, std::string_view document, DocumentStatus status, const std::vector<int>& ratings);
+    void AddDocument(int document_id, std::string_view document_sv, DocumentStatus status, const std::vector<int>& ratings);
 
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(
-            std::string_view raw_query, DocumentPredicate document_predicate) const {
+            std::string_view raw_query_sv, DocumentPredicate document_predicate) const {
 
         std::vector<Document> top_documents;
         top_documents.reserve(MAX_RESULT_DOCUMENT_COUNT);
 
-        std::vector<Document> all_documents = FindAllDocuments(raw_query);
+        std::vector<Document> all_documents = FindAllDocuments(raw_query_sv);
         std::sort(std::execution::par, 
              all_documents.begin(), 
              all_documents.end(), 
@@ -100,29 +100,29 @@ public:
         return top_documents;
     }
 
-    std::vector<Document> FindTopDocuments(std::string_view raw_query, DocumentStatus status) const;
+    std::vector<Document> FindTopDocuments(std::string_view raw_query_sv, DocumentStatus status) const;
 
-    std::vector<Document> FindTopDocuments(std::string_view raw_query) const;
+    std::vector<Document> FindTopDocuments(std::string_view raw_query_sv) const;
 
     int GetDocumentCount() const noexcept;
 
     std::tuple<std::vector<std::string_view>, DocumentStatus> 
-    MatchDocument(std::string_view raw_query, int document_id) const;
+    MatchDocument(std::string_view raw_query_sv, int document_id) const;
 
     template <typename ExecutionPolicy>
     std::tuple<std::vector<std::string_view>, DocumentStatus> 
-    MatchDocument(ExecutionPolicy&& policy, std::string_view raw_query, int document_id) const {
+    MatchDocument(ExecutionPolicy&& policy, std::string_view raw_query_sv, int document_id) const {
         std::vector<std::string_view> plus_words;
-        SearchServer::Query query_words = ParseQuery(policy, raw_query);
+        SearchServer::Query query_words = ParseQuery(policy, raw_query_sv);
         const Document& current_document = id_to_document_.at(document_id);
         
-        for(std::string_view mw : query_words.minus_words_) {
-            if(auto it = current_document.word_to_freqs_.find(mw); it != current_document.word_to_freqs_.end()) {
+        for(std::string_view mw_sv : query_words.minus_words_) {
+            if(auto it = current_document.word_to_freqs_.find(mw_sv); it != current_document.word_to_freqs_.end()) {
                 return {{}, current_document.status_};
             }
         }
-        for(std::string_view pw : query_words.plus_words_) {
-            if(auto it = current_document.word_to_freqs_.find(pw); it != current_document.word_to_freqs_.end()) {
+        for(std::string_view pw_sv : query_words.plus_words_) {
+            if(auto it = current_document.word_to_freqs_.find(pw_sv); it != current_document.word_to_freqs_.end()) {
                 plus_words.push_back(it->first);
             }
         }
@@ -143,24 +143,24 @@ public:
     const_iterator cend() noexcept;
 
 private:  
-    std::vector<std::string_view> SplitIntoWords(std::string_view text) const;
+    std::vector<std::string_view> SplitIntoWords(std::string_view text_sv) const;
 
-    std::vector<std::string_view> SplitIntoWordsNoStop(std::string_view text) const;
+    std::vector<std::string_view> SplitIntoWordsNoStop(std::string_view text_sv) const;
 
     int GetRating(int document_id) const;
 
-    std::vector<Document> FindAllDocuments(std::string_view raw_query) const;
+    std::vector<Document> FindAllDocuments(std::string_view raw_query_sv) const;
 
     static int ComputeAverageRating(const std::vector<int>& rates);
 
-    void CheckUnacceptableSymbols(std::string_view word) const;
+    void CheckUnacceptableSymbols(std::string_view word_sv) const;
 
-    Query ParseQuery(std::string_view raw_query) const;
+    Query ParseQuery(std::string_view raw_query_sv) const;
 
     template <typename ExecutionPolicy>
-    Query ParseQuery(ExecutionPolicy&& policy, std::string_view raw_query) const {
+    Query ParseQuery(ExecutionPolicy&& policy, std::string_view raw_query_sv) const {
         Query query_words;
-        const std::vector<std::string_view> words = SplitIntoWordsNoStop(raw_query);
+        const std::vector<std::string_view> words = SplitIntoWordsNoStop(raw_query_sv);
 
         Query result;
         std::mutex mutex;
@@ -168,21 +168,21 @@ private:
         std::for_each(
             policy,
             words.begin(), words.end(),
-            [&](std::string_view word) {
-                CheckUnacceptableSymbols(word);
-                if(word.empty()) {
+            [&](std::string_view word_sv) {
+                CheckUnacceptableSymbols(word_sv);
+                if(word_sv.empty()) {
                     return;
                 }
-                if (word[0] == '-') {
-                    if (word.size() == 1 || word[1] == '-') {
+                if (word_sv[0] == '-') {
+                    if (word_sv.size() == 1 || word_sv[1] == '-') {
                         throw std::invalid_argument("Word can't be '-' or start with '--'");
                     }
-                    std::string_view minus_word = word.substr(1);
+                    std::string_view minus_word_sv = word_sv.substr(1);
                     std::lock_guard<std::mutex> lock(mutex);
-                    result.minus_words_.insert(minus_word);
+                    result.minus_words_.insert(minus_word_sv);
                 } else {
                     std::lock_guard<std::mutex> lock(mutex);
-                    result.plus_words_.insert(word);
+                    result.plus_words_.insert(word_sv);
                 }
             });
         return result;
