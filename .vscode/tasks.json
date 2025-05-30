@@ -29,6 +29,7 @@
                 "main.cpp",
                 "search_server.cpp",
                 "process_queries.cpp",
+                "log_duration.cpp",
                 "-o",
                 "/home/anton/University/Dev/search_system/main"
             ],

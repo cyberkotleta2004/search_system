@@ -103,8 +103,29 @@ public:
     std::tuple<std::vector<std::string>, DocumentStatus> 
     MatchDocument(const std::string& raw_query, int document_id) const;
 
-    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
     void RemoveDocument(int document_id);
+
+    template <typename ExecutionPolicy>
+    void RemoveDocument(ExecutionPolicy&& policy, int document_id) {
+        std::vector<int> ids;
+        ids.reserve(id_to_document_.size());
+        for(const auto [key, _] : id_to_document_) {
+            ids.push_back(key);
+        }
+
+        if(auto it = std::find(policy, ids.begin(), ids.end(), document_id); it != ids.end()) {
+            for(const auto& [word, _] : id_to_document_[document_id].word_to_freqs_) {
+                if(word_to_count_.at(word) == 1) {
+                    word_to_count_.erase(word);
+                } else {
+                    --word_to_count_[word];
+                }
+            }
+
+            id_to_document_.erase(document_id);
+            --document_count_;
+        }
+    }
 
     using iterator = std::map<int, Document>::iterator;
     using const_iterator = std::map<int, Document>::const_iterator;

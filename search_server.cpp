@@ -1,5 +1,6 @@
 #include "search_server.h"
 #include <cmath>
+#include <algorithm>
 
 SearchServer::Document::Document() 
     : rating_(0)
@@ -88,18 +89,7 @@ SearchServer::MatchDocument(const std::string& raw_query, int document_id) const
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    if(auto it = id_to_document_.find(document_id); it != id_to_document_.end()) {
-        for(const auto& [word, _] : it->second.word_to_freqs_) {
-            if(word_to_count_.at(word) == 1) {
-                word_to_count_.erase(word);
-            } else {
-                --word_to_count_[word];
-            }
-        }
-
-        id_to_document_.erase(document_id);
-        --document_count_;
-    }
+    RemoveDocument(std::execution::seq, document_id);
 }
 
 SearchServer::iterator SearchServer::begin() noexcept {
