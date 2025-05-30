@@ -30,6 +30,8 @@
                 "search_server.cpp",
                 "process_queries.cpp",
                 "log_duration.cpp",
+                "test_search_server.cpp",
+                "request_queue.cpp",
                 "-o",
                 "/home/anton/University/Dev/search_system/main"
             ],
