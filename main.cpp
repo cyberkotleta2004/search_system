@@ -1,6 +1,6 @@
 #include "process_queries.h"
 #include "search_server.h"
-#include "log_duration.h"
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -28,14 +28,8 @@ int main() {
         "not very funny nasty pet"s,
         "curly hair"s
     };
-    id = 0;
-    {
-        LOG_DURATION_STREAM("log", std::cerr);
-        for (
-            const auto& documents : ProcessQueries(search_server, queries)
-        ) {
-            cout << documents.size() << " documents for query ["s << queries[id++] << "]"s << endl;
-        }
+    for (const SearchServer::Document& document : ProcessQueriesJoined(search_server, queries)) {
+        cout << "Document "s << document.id_ << " matched with relevance "s << document.relevance_ << endl;
     }
 
     return 0;

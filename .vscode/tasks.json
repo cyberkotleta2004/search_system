@@ -28,6 +28,7 @@
                 "-g",
                 "main.cpp",
                 "search_server.cpp",
+                "process_queries.cpp",
                 "-o",
                 "/home/anton/University/Dev/search_system/main"
             ],

@@ -28,17 +28,23 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
     if(auto it = id_to_document_.find(document_id); it != id_to_document_.end()) {
         throw std::invalid_argument("document already exists!");
     }
+
+
     std::unordered_map<std::string, int> word_to_count;
     std::vector<std::string> words_no_stop = SplitIntoWordsNoStop(document);
     for(const auto& word : words_no_stop) {
         CheckUnacceptableSymbols(word);
         ++word_to_count[word];
+    }
+    
+    std::set<std::string> words_no_stop_set(words_no_stop.begin(), words_no_stop.end());
+    for(const auto& word : words_no_stop_set) {
         ++word_to_count_[word];
     }
-
+    
     int avg_rating = ComputeAverageRating(ratings);
     id_to_document_.insert({document_id, {document_id, avg_rating, status}});
-
+    
     for(const auto& [word, count] : word_to_count) {
         id_to_document_[document_id].word_to_freqs_[word] = static_cast<double>(count) / words_no_stop.size();
     }
